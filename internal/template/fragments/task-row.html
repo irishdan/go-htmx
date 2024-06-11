@@ -1,0 +1,19 @@
+<tr id='task-row-{{.Id}}'>
+    <td>{{.Title}}</td>
+    <td>{{.Description}}</td>
+    <td class="text-right">
+        <input
+            {{if ne .CompletedAt nil}}checked{{end}}
+            type="checkbox"
+            name="completed"
+            hx-target='#task-row-{{.Id}}'
+            hx-trigger="click"
+            hx-put="/update/{{.Id}}"
+            hx-vals='{"completed": this.checked}'
+        />
+    </td>
+    <td class="w-28 text-right">
+        <button hx-get="/get-edit-form/{{.Id}}" class="mx-2 text-red-800 uppercase font-bold text-xs">Edit</button>
+        <button hx-delete="/delete/{{.Id}}" class="text-red-800 uppercase font-bold text-xs">Delete</button>
+    </td>
+</tr>

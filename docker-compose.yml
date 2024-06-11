@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  psql:
+  dbl:
     image: postgres:latest
     environment:
       POSTGRES_DB: ${DB_DATABASE}

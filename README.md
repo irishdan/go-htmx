@@ -1,10 +1,6 @@
-# Project api
+# Go and htmx example
 
-One Paragraph of project description goes here
-
-## Getting Started
-
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
+First attempt and creating a simple go backend.
 
 ## MakeFile
 
@@ -46,4 +42,9 @@ make test
 clean up binary from the last build
 ```bash
 make clean
+```
+
+create migration
+```bash
+migrate create -ext sql -dir migrations create_tasks_table
 ```

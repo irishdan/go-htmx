@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{.Title}}</title>
+    <link rel='preconnect' href='https://fonts.googleapis.com' />
+    <link rel='preconnect' href="https://fonts.gstatic.com" crossorigin />
+    <link rel='styelsheet' href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=Oswald:wght@200;500&display=swap' type='text/css' />
+    <link rel='stylesheet' href='https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css' />
+
+    <script src='https://unpkg.com/htmx.org@1.5.0'></script>
+
+    <style>
+        h1, th {font-family: 'Oswald', sans-serif; font-weight: 200;}
+        body {font-family: 'Inter', sans-serif; font-weight: 200;}
+    </style>
+</head>
+<body>
+    <div class="container mx-auto py-10 px-4 md:px-0">
+        <h1>{{.Title}}</h1>
+        <form hx-post="/" hx-swap="beforeend" hx-target="#new-task" class="my-4 max-w-md">
+            <input type="text" placeholder="Task" required=true name="title" class="block text-sm leading-5 w-full py-2 px-3 border-2 border-rose-600 text-slate-500 rounded-lg shadow-sm focus:outline-none focus:ring focus:ring-rose-200 focus:border-rose-500 dark:text-slate-400 dark:placeholder:text-slate-600 dark:bg-slate-900 dark:border-rose-500 dark:focus:ring-rose-900 dark:focus:border-rose-600" />
+            <input type="text" placeholder="Description" name="description" class="block text-sm leading-5 w-full py-2 px-3 border-2 border-rose-600 text-slate-500 rounded-lg shadow-sm focus:outline-none focus:ring focus:ring-rose-200 focus:border-rose-500 dark:text-slate-400 dark:placeholder:text-slate-600 dark:bg-slate-900 dark:border-rose-500 dark:focus:ring-rose-900 dark:focus:border-rose-600 my-1" />
+            <button type="submit" class="bg-red-600 hover:bg-red-500 text-white py-2 px-8 rounded text-sm">Submit</button>
+        </form>
+        <table class="table-auto w-full">
+            <thead>
+                <tr>
+                    <th class="text-left font-medium">Task Title</th>
+                    <th class="text-left font-medium">Description</th>
+                    <th class="text-right font-medium">Completed</th>
+                </tr>
+            </thead>
+            <tbody id="new-task" hx-target="closest tr" hx-swap="outerHTML swap:0.5s">
+                {{range .Items}}
+                    {{template "task-row.html" .}}
+                {{end}}
+            </tbody>
+        </table>
+
+    </div>
+</body>
+</html>

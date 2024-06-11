@@ -1,27 +1,25 @@
 package database
 
 import (
-	"context"
+	"api/internal/model"
 	"database/sql"
 	"fmt"
-	"log"
-	"os"
-	"strconv"
-	"time"
-
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/joho/godotenv/autoload"
+	"log"
+	"os"
 )
 
-// Service represents a service that interacts with a database.
 type Service interface {
-	// Health returns a map of health status information.
-	// The keys and values in the map are service-specific.
-	Health() map[string]string
-
-	// Close terminates the database connection.
-	// It returns an error if the connection cannot be closed.
 	Close() error
+	Tasks() ([]model.Task, error)
+	AddTask(task model.Task) (model.Task, error)
+	UpdateTask(task model.Task) error
+	DeleteTask(id int64) error
+	GetTask(id int64) (model.Task, error)
 }
 
 type service struct {
@@ -47,68 +45,86 @@ func New() Service {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Run db migrations...
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
+	m, err := migrate.NewWithDatabaseInstance("file://./migrations", database, driver)
+	if err != nil {
+		log.Fatalf("Failed to create migrate instance: %v", err)
+	}
+	err = m.Up()
+	if err != nil && err != migrate.ErrNoChange {
+		log.Fatalf("Failed to apply migrations: %v", err)
+	}
+
 	dbInstance = &service{
 		db: db,
 	}
 	return dbInstance
 }
 
-// Health checks the health of the database connection by pinging the database.
-// It returns a map with keys indicating various health statistics.
-func (s *service) Health() map[string]string {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-
-	stats := make(map[string]string)
-
-	// Ping the database
-	err := s.db.PingContext(ctx)
-	if err != nil {
-		stats["status"] = "down"
-		stats["error"] = fmt.Sprintf("db down: %v", err)
-		log.Fatalf(fmt.Sprintf("db down: %v", err)) // Log the error and terminate the program
-		return stats
-	}
-
-	// Database is up, add more statistics
-	stats["status"] = "up"
-	stats["message"] = "It's healthy"
-
-	// Get database stats (like open connections, in use, idle, etc.)
-	dbStats := s.db.Stats()
-	stats["open_connections"] = strconv.Itoa(dbStats.OpenConnections)
-	stats["in_use"] = strconv.Itoa(dbStats.InUse)
-	stats["idle"] = strconv.Itoa(dbStats.Idle)
-	stats["wait_count"] = strconv.FormatInt(dbStats.WaitCount, 10)
-	stats["wait_duration"] = dbStats.WaitDuration.String()
-	stats["max_idle_closed"] = strconv.FormatInt(dbStats.MaxIdleClosed, 10)
-	stats["max_lifetime_closed"] = strconv.FormatInt(dbStats.MaxLifetimeClosed, 10)
-
-	// Evaluate stats to provide a health message
-	if dbStats.OpenConnections > 40 { // Assuming 50 is the max for this example
-		stats["message"] = "The database is experiencing heavy load."
-	}
-
-	if dbStats.WaitCount > 1000 {
-		stats["message"] = "The database has a high number of wait events, indicating potential bottlenecks."
-	}
-
-	if dbStats.MaxIdleClosed > int64(dbStats.OpenConnections)/2 {
-		stats["message"] = "Many idle connections are being closed, consider revising the connection pool settings."
-	}
-
-	if dbStats.MaxLifetimeClosed > int64(dbStats.OpenConnections)/2 {
-		stats["message"] = "Many connections are being closed due to max lifetime, consider increasing max lifetime or revising the connection usage pattern."
-	}
-
-	return stats
-}
-
-// Close closes the database connection.
-// It logs a message indicating the disconnection from the specific database.
-// If the connection is successfully closed, it returns nil.
-// If an error occurs while closing the connection, it returns the error.
 func (s *service) Close() error {
 	log.Printf("Disconnected from database: %s", database)
 	return s.db.Close()
+}
+
+func (s *service) Tasks() ([]model.Task, error) {
+	rows, err := s.db.Query("SELECT * FROM tasks")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tasks []model.Task
+
+	// Loop through rows, using Scan to assign column data to struct fields.
+	for rows.Next() {
+		var task model.Task
+		if err := rows.Scan(&task.Id, &task.Title, &task.Description, &task.CompletedAt); err != nil {
+			return tasks, err
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, nil
+}
+
+func (s *service) AddTask(task model.Task) (model.Task, error) {
+	err := s.db.QueryRow("INSERT INTO tasks (title, description) VALUES ($1, $2) RETURNING id", task.Title, task.Description).Scan(&task.Id)
+	if err != nil {
+		return task, fmt.Errorf("AddTask: %v", err)
+	}
+
+	return task, nil
+}
+
+func (s *service) UpdateTask(task model.Task) error {
+	err := s.db.QueryRow("UPDATE tasks SET title = $1, description = $2, completedat = $3 WHERE id = $4", task.Title, task.Description, task.CompletedAt, task.Id)
+	if err != nil {
+		return fmt.Errorf("UpdateTask: %v", err)
+	}
+
+	return nil
+}
+
+func (s *service) DeleteTask(id int64) error {
+	_, err := s.db.Exec("DELETE FROM tasks WHERE id = $1", id)
+	if err != nil {
+		return fmt.Errorf("DeleteTask: %v", err)
+	}
+	return nil
+}
+
+func (s *service) GetTask(id int64) (model.Task, error) {
+	var task model.Task
+	err := s.db.QueryRow("SELECT * FROM tasks WHERE id = $1", id).Scan(&task.Id, &task.Title, &task.Description, &task.CompletedAt)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// No rows were returned
+			return task, fmt.Errorf("No task found with id: %v", id)
+		}
+		return task, err
+	}
+
+	return task, nil
 }
